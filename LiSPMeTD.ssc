@@ -1,0 +1,31 @@
+component LiSPMeTD
+% Two-port electrical component
+
+parameters
+   % Add parameters here
+   % R = { 1, 'Ohm' }; % Resistance
+end
+
+nodes
+    p = foundation.electrical.electrical; % +:left
+    n = foundation.electrical.electrical; % -:right
+end
+
+variables
+    i = { 0, 'A' }; % Current
+    v = { 0, 'V' }; % Voltage
+end
+
+branches
+    i : p.i -> n.i;
+end
+
+equations
+    % Voltage difference between nodes
+    v == p.v - n.v;
+
+    % Add equations here
+    % v == i*R;
+end
+
+end
