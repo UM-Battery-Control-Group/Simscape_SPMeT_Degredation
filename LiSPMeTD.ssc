@@ -3,8 +3,30 @@ component LiSPMeTD
 
 parameters
    % Add parameters here
+   nr = 6; % number of spatial discretization points.
    % R = { 1, 'Ohm' }; % Resistance
-end
+   Rp=3.5e-06; % Radius of Particle       NMC
+   Ds_p=8e-15; % Ds_p_1 (m^2/s)      NMC 0.025
+   Alpha_s_p=Ds_p/(Rp/nr)^2
+   
+   del_p = 6.7e-05; % Electrode Thickness        NMC
+   cs_max_p = 35380; % cs_max_p_1 (mol/m^3)    NMC
+   epsilon_e_p = 0.3;   % Volume fraction in electrolyte (porosity) for pos. electrode
+   Active_Area = 0.205; %Battery Total Area (Area x No of Layers)
+   as_p_0 = 3*(1-epsilon_e_p)/Rp; % Active surface area per electrode unit volume   NMC
+   
+
+    Asys=zeros(nr+1,nr+1);
+    inr=1:nr;
+    Asys=diag(-2*ones(1,nr+1))+diag((inr-1)./inr,-1)+diag(inr./(inr-1),1);
+    Asys(1,1)=-6;
+    Asys(1,2)=6;
+    
+    Asys(nr+1,nr)=2;
+    Asys(nr+1,nr+1)=-2;
+    Bsys=zeros(nr+1,1);
+    Bsys(nr+1,1)=-2*(nr+1)/nr;
+    end
 
 nodes
     p = foundation.electrical.electrical; % +:left
@@ -14,6 +36,7 @@ end
 variables
     i = { 0, 'A' }; % Current
     v = { 0, 'V' }; % Voltage
+    cp = 0.5*zeros(1,nr); % Normalized Concentration.
 end
 
 branches
@@ -23,7 +46,7 @@ end
 equations
     % Voltage difference between nodes
     v == p.v - n.v;
-
+    xp.der == Asys * cp+Bsys*i/(CC.drn_0*CC.F*CC.A*CC.as_n_0*CC.del_n)
     % Add equations here
     % v == i*R;
 end
