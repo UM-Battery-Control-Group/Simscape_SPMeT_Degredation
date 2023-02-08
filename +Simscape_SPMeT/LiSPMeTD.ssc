@@ -23,7 +23,7 @@ end
 parameters(Access = private)
    as_p_0 = 3*(1-epsilon_e_p)/Rp; % Active surface area per electrode unit volume   NMC 
    Alpha_s_p=Ds_p/(Rp/nr)^2;
-   [Asys,Bsys] = Generate_Amat(nr);
+   [Asys,Bsys,Cs_surf,Cs_avg] = Generate_Amat(nr);
 end
 
 nodes
@@ -37,6 +37,19 @@ variables
     cp =0.5*zeros(nr+1,1); % Normalized Concentration.
 end
 
+% outputs
+%     cs_surf=Cs_surf*cp;
+%    %v = {zeros(3), 'm/s'};    
+% end
+
+% intermediates
+%     f    = 0.316 / Re_d^0.25;    % Darcy friction factor
+%     Re_d = D_h * V / nu;         % Reynolds number
+%     D_h  = sqrt( 4.0 * A / pi ); % Hydraulic diameter
+%     V    = q / A;                % Flow velocity
+%   end
+
+
 branches
     i : p.i -> n.i;
 end
@@ -44,6 +57,7 @@ end
 equations
     % Voltage difference between nodes
     v == p.v - n.v;
+    v == {Cs_surf*cp, 'V'};
     cp.der == Alpha_s_p*Asys * cp+Bsys*i/(cs_max_p/nr*Faradays*Active_Area*as_p_0*del_p)%/(CC.drn_0*CC.F*CC.A*CC.as_n_0*CC.del_n)
     % Add equations here
     % v == i*R;

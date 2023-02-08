@@ -1,4 +1,4 @@
-function [Asys,Bsys] = Generate_Amat(nr)
+function [Asys,Bsys,Cs_surf,Cs_avg] = Generate_Amat(nr)
 %GENERATE_AMAT Summary of this function goes here
 %   Detailed explanation goes here
    inr=1:nr;
@@ -9,5 +9,8 @@ function [Asys,Bsys] = Generate_Amat(nr)
    Asys(nr+1,nr+1)=-2;
    Bsys=zeros(nr+1,1);
    Bsys(nr+1,1)=-2*(nr+1)/nr;
+   Cs_surf=zeros(1,nr+1);
+   Cs_surf(1,nr+1)=1;
+   Cs_avg=ones(1,nr+1);
 end
 
