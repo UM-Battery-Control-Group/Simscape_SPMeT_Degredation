@@ -1,5 +1,20 @@
-component LiSPMeTD
+component SPM_Trial
 % Two-port electrical component
+nodes
+    p = foundation.electrical.electrical; % +:left
+    n = foundation.electrical.electrical; % -:right
+end
+
+outputs
+    cs_surf;
+%    %v = {zeros(3), 'm/s'};    
+end
+
+variables
+    i = { 0, 'A' }; % Current
+    v = { 0, 'V' }; % Voltage
+    cp = 5*ones(nr+1,1); % Normalized Concentration.
+end
 
 parameters
    % Add parameters here
@@ -23,24 +38,15 @@ end
 parameters(Access = private)
    as_p_0 = 3*(1-epsilon_e_p)/Rp; % Active surface area per electrode unit volume   NMC 
    Alpha_s_p=Ds_p/(Rp/nr)^2;
-   [Asys,Bsys,Cs_surf,Cs_avg] = Generate_Amat(nr);
+   
 end
 
-nodes
-    p = foundation.electrical.electrical; % +:left
-    n = foundation.electrical.electrical; % -:right
+parameters(Access = private)
+    [Asys,Bsys,Cs_surf,Cs_avg] = Generate_Amat(nr);
 end
 
-variables
-    i = { 0, 'A' }; % Current
-    v = { 0, 'V' }; % Voltage
-    cp =0.5*zeros(nr+1,1); % Normalized Concentration.
-end
 
-% outputs
-%     cs_surf=Cs_surf*cp;
-%    %v = {zeros(3), 'm/s'};    
-% end
+
 
 % intermediates
 %     f    = 0.316 / Re_d^0.25;    % Darcy friction factor
@@ -56,11 +62,14 @@ end
 
 equations
     % Voltage difference between nodes
+
+    % all these equations run in parallel, not one after the other
     v == p.v - n.v;
     v == {Cs_surf*cp, 'V'};
-    cp.der == Alpha_s_p*Asys * cp+Bsys*i/(cs_max_p/nr*Faradays*Active_Area*as_p_0*del_p)%/(CC.drn_0*CC.F*CC.A*CC.as_n_0*CC.del_n)
+    der(cp) == Alpha_s_p*Asys * cp + Bsys*i/(cs_max_p/nr*Faradays*Active_Area*as_p_0*del_p)%/(CC.drn_0*CC.F*CC.A*CC.as_n_0*CC.del_n)
     % Add equations here
-    % v == i*R;
+    %v == i*R;
+    cs_surf==Cs_surf*cp;
 end
 
 end
