@@ -1,48 +1,80 @@
-component SPM_Trial
+component SPM_Trial_2
 % Two-port electrical component
 nodes
     p = foundation.electrical.electrical; % +:left
     n = foundation.electrical.electrical; % -:right
 end
 
-outputs
-    cs_surf;
-%    %v = {zeros(3), 'm/s'};    
+outputs 
+    cs_surf_p;
+    cs_surf_n;
+    %UP;
+    %UN;
+    %V_ocp;
+    %v = {zeros(3), 'm/s'};    
 end
 
 variables
     i = { 0, 'A' }; % Current
     v = { 0, 'V' }; % Voltage
-    cp = 5*ones(nr+1,1); % Normalized Concentration.
+    %cp = 0.5*ones(nr+1,1); % Normalized Concentration.
+    %cn = 0.5*ones(nr+1,1); % Non Normalized Concentration.
+    cp = (SOC_0*(y100_percent_p-y0_percent_p)+y0_percent_p)*ones(nr+1,1); % Normalized Concentration.
+    cn = (SOC_0*(x100_percent_n-x0_percent_n)+x0_percent_n)*ones(nr+1,1); % Non Normalized Concentration.
+    UP=0;
+    UN=0;
+    V_ocp=0;
 end
 
 parameters
    % Add parameters here
-   nr = 6; % number of spatial discretization points.
+   nr = 50; % number of spatial discretization points.
    % R = { 1, 'Ohm' }; % Resistance
-   Rp={3.5e-06,'m'}; % Radius of Particle       NMC
-   Ds_p={8e-15,'m^2/s'}; % Ds_p_1 (m^2/s)      NMC 0.025
+   Rp = {3.5e-06,'m'}; % Radius of Particle NMC
+   Rn = {2.5e-06,'m'};  % Radius of Particle Graphite
+   Ds_p = {8e-15,'m^2/s'}; % Ds_p_1 (m^2/s) NMC 0.025
+   Ds_n = {5e-15,'m^2/s'}; % Ds_n (m^2/s) Graphite 0.4
+   SOC_0 = 0.1;
+   % Stoichiometric Windows 
+   x100_percent_n = 0.8292;
+   x0_percent_n = 3.5506e-04; 
+   y0_percent_p = 0.8941;
+   y100_percent_p = 0.0335; 
    
 
-   del_p = {6.7e-05,'m'}; % Electrode Thickness        NMC
-   cs_max_p = 35380; % cs_max_p_1 (mol/m^3)    NMC
-   epsilon_e_p = 0.3;   % Volume fraction in electrolyte (porosity) for pos. electrode
-   Active_Area = 0.205; %Battery Total Area (Area x No of Layers)
+   del_p = {6.7e-05,'m'}; % Electrode Thickness NMC
+   del_n = {6.2e-05,'m'};% Electrode Thickness Graphite
+   cs_max_p = {35380,'mol/m^3'}; % cs_max_p_1 (mol/m^3) NMC
+   cs_max_n = {28746,'mol/m^3'}; % cs_max_n (mol/m^3) Graphite
+   epsilon_e_p = 0.3; % Volume fraction in electrolyte (porosity) for pos. electrode
+   epsilon_e_n = 0.3; % Volume fraction in electrolyte (porosity) for neg. electrode
+   Active_Area = {0.205,'m^2'}; % Battery Total Area (Area x No of Layers)
    
-   Faradays={96485,'C'};    % Faraday Constant (C/mol)
-   T = 273.15+25;% Temperature
-   R = 8.3145;   % Gas constant
-%   Asys=zeros(nr+1,nr+1);
+   Faradays={96485,'C/mol'}; % Faraday Constant (C/mol)
+   T = 273.15+25; % Temperature
+   R = 8.3145; % Gas constant
+
+   Cap_n =  {6.0272,'C'};
+   Cap_p =  {5.8050,'C'};
 end
 
 parameters(Access = private)
-   as_p_0 = 3*(1-epsilon_e_p)/Rp; % Active surface area per electrode unit volume   NMC 
+
+   es_n = Cap_n*3600/(Faradays*Active_Area*del_n*cs_max_n); %as per Sravans calc
+   es_p = Cap_p*3600/(Faradays*Active_Area*del_p*cs_max_p); %as per Sravans calc
+   as_p_0 = 3*(es_p)/Rp; % Active surface area per electrode unit volume   NMC as per Sravans calc
+   as_n_0 = 3*(es_n)/Rn; % Active surface area per electrode unit volume   Graphite as per Sravans calc
+  
    Alpha_s_p=Ds_p/(Rp/nr)^2;
+   Alpha_s_n=Ds_n/(Rn/nr)^2;
+   drp_0 = Rp/nr;
+   drn_0 = Rn/nr;
    
 end
 
 parameters(Access = private)
     [Asys,Bsys,Cs_surf,Cs_avg] = Generate_Amat(nr);
+   
 end
 
 
@@ -53,7 +85,7 @@ end
 %     Re_d = D_h * V / nu;         % Reynolds number
 %     D_h  = sqrt( 4.0 * A / pi ); % Hydraulic diameter
 %     V    = q / A;                % Flow velocity
-%   end
+% end
 
 
 branches
@@ -65,11 +97,27 @@ equations
 
     % all these equations run in parallel, not one after the other
     v == p.v - n.v;
-    v == {Cs_surf*cp, 'V'};
-    der(cp) == Alpha_s_p*Asys * cp + Bsys*i/(cs_max_p/nr*Faradays*Active_Area*as_p_0*del_p)%/(CC.drn_0*CC.F*CC.A*CC.as_n_0*CC.del_n)
+    %v == {Cs_surf*cp, 'V'};
+    v == {V_ocp,'V'};
+    der(cp) == Alpha_s_p*Asys * cp - Bsys*i/(cs_max_p*drp_0*Faradays*Active_Area*as_p_0*del_p); % /(CC.drn_0*CC.F*CC.A*CC.as_n_0*CC.del_n) 
+    der(cn) == Alpha_s_n*Asys * cn + Bsys*i/(cs_max_n*drn_0*Faradays*Active_Area*as_n_0*del_n); % /(CC.drn_0*CC.F*CC.A*CC.as_n_0*CC.del_n) 
     % Add equations here
     %v == i*R;
-    cs_surf==Cs_surf*cp;
+    cs_surf_p==(Cs_surf*cp);
+    cs_surf_n==(Cs_surf*cn);
+    %UP == Up_1(cs_surf_p);
+    %UN == Un_0(cs_surf_n);
+    V_ocp == UP-UN;
+
+    UP ==  4.3452-1.6518*(cs_surf_p)+1.6225*(cs_surf_p).^2-2.0843*(cs_surf_p).^3+3.5146*(cs_surf_p).^4-2.2166*(cs_surf_p).^5-0.5623*exp(109.451*(cs_surf_p)-100.006);
+    UN ==  0.063+0.8*exp(-75*(cs_surf_n+0.007))+...
+    -0.0120*tanh((cs_surf_n-0.127)/0.016)+...
+    -0.0118*tanh((cs_surf_n-0.155)/0.016)+...
+    -0.0035*tanh((cs_surf_n-0.220)/0.020)+...
+    -0.0095*tanh((cs_surf_n-0.190)/0.013)+...
+    -0.0145*tanh((cs_surf_n-0.490)/0.030)+...
+    -0.0800*tanh((cs_surf_n-1.030)/0.055);
+
 end
 
 end
