@@ -1,4 +1,4 @@
-component SPM_Trial_2
+component SPM_Trial_4_2
 % Two-port electrical component
 nodes
     p = foundation.electrical.electrical; % +:left
@@ -8,10 +8,18 @@ end
 outputs 
     cs_surf_p;
     cs_surf_n;
-    %UP;
-    %UN;
-    %V_ocp;
-    %v = {zeros(3), 'm/s'};    
+    ce_ave_n;
+    ce_ave_s;
+    ce_ave_p;
+    V_terminal;
+    eta_p;
+    eta_n;
+    i0_n;
+    phi_electrolyte;
+    eta_c;
+    Vr_n;
+    %phi_electrolyte;
+      
 end
 
 variables
@@ -20,21 +28,55 @@ variables
     %cp = 0.5*ones(nr+1,1); % Normalized Concentration.
     %cn = 0.5*ones(nr+1,1); % Non Normalized Concentration.
     cp = (SOC_0*(y100_percent_p-y0_percent_p)+y0_percent_p)*ones(nr+1,1); % Normalized Concentration.
-    cn = (SOC_0*(x100_percent_n-x0_percent_n)+x0_percent_n)*ones(nr+1,1); % Non Normalized Concentration.
-    UP=0;
-    UN=0;
-    V_ocp=0;
+    cn = (SOC_0*(x100_percent_n-x0_percent_n)+x0_percent_n)*ones(nr+1,1); % Normalized Concentration.
+    ce = (ce_init/ce_init)*ones(np+ns+nn+1,1); % Normalized Concentration
+    UP = 0;
+    UN = 0;
+    V_ocp = 0;
+%    eta_c = 0;
+%    phi_electrolyte = 0;
+%     j_n = {0,'mol/m^2/s'};
+%     j_p = {0,'mol/m^2/s'}; 
+%     i0_n = {0,'C/m^2/s'};
+%     i0_p = {0,'C/m^2/s'};
+    j_n = 0;
+    j_p = 0;
+    %i0_n = 0;
+    i0_p = 0; 
+    %eta_n = 0;
+    %eta_p = 0;
+    Vr_p = 0;
+%    Vr_n = 0;
+    x = 0;  
+    y = 0; 
 end
 
 parameters
    % Add parameters here
    nr = 50; % number of spatial discretization points.
+   nn = 50;  %number of elements in the negative electrode
+   ns = 25;  %number of elements in the separator
+   np = 50;  %number of elements in the positive electrode
    % R = { 1, 'Ohm' }; % Resistance
    Rp = {3.5e-06,'m'}; % Radius of Particle NMC
    Rn = {2.5e-06,'m'};  % Radius of Particle Graphite
    Ds_p = {8e-15,'m^2/s'}; % Ds_p_1 (m^2/s) NMC 0.025
    Ds_n = {5e-15,'m^2/s'}; % Ds_n (m^2/s) Graphite 0.4
-   SOC_0 = 0.1;
+   D_e = {5.35e-10,'m^2/s'};% (m^2/s) Electrolyte Diffusion Coefficient
+   D_e1 = 5.35e-10;
+   SOC_0 = 0.1; % Initialized SOC
+  
+   brugg = 1.5; % Bruggman exponent
+   t_plus = 0.38; % transference number
+   tf = 0.62; % Thermodynamic factor
+   ce_init ={1000,'mol/m^3'}; % initial electrolyte concentration
+   ce_init_unitless = 1000;
+   kappa = {1.3,'S/m'}; % electrolyte conductivity
+   k0_n = 1.061e-6/96485; % k0_n (mol/[m^2s(mol/m^3)]) reaction rate constant  Graphite ---- confirm if Fradays is req to multiply -- is it only for value? acc to units yes
+   k0_p = 4.824e-6/96485; % k0_n (mol/[m^2s(mol/m^3)]) reaction rate constant  NMC ---- confirm if Fradays is req to multiply
+   kt_n = {1*0.0250,'V/A*m^2'};  % kt (omega m^2) film resistence  Graphite
+   kt_p = {0*300e-4,'V/A*m^2'};  % kt (omega m^2) film resistence  NMC
+  
    % Stoichiometric Windows 
    x100_percent_n = 0.8292;
    x0_percent_n = 3.5506e-04; 
@@ -44,10 +86,19 @@ parameters
 
    del_p = {6.7e-05,'m'}; % Electrode Thickness NMC
    del_n = {6.2e-05,'m'};% Electrode Thickness Graphite
+   del_s = {1.2e-05,'m'}; % Separator Thickness
+
+   del_p1 = 6.7e-05; % Electrode Thickness NMC
+   del_n1 = 6.2e-05;% Electrode Thickness Graphite
+   del_s1 = 1.2e-05; % Separator Thickness
+
    cs_max_p = {35380,'mol/m^3'}; % cs_max_p_1 (mol/m^3) NMC
+   cs_max_p_unitless = 35380;
    cs_max_n = {28746,'mol/m^3'}; % cs_max_n (mol/m^3) Graphite
+   cs_max_n_unitless = 28746; 
    epsilon_e_p = 0.3; % Volume fraction in electrolyte (porosity) for pos. electrode
    epsilon_e_n = 0.3; % Volume fraction in electrolyte (porosity) for neg. electrode
+   epsilon_e_s = 0.4; % Volume fraction in electrolyte (porosity) for seperator
    Active_Area = {0.205,'m^2'}; % Battery Total Area (Area x No of Layers)
    
    Faradays={96485,'C/mol'}; % Faraday Constant (C/mol)
@@ -59,7 +110,8 @@ parameters
 end
 
 parameters(Access = private)
-
+   %as_p_0 = 3*(1-epsilon_e_p)/Rp; % Active surface area per electrode unit volume   NMC 
+   %as_n_0 = 3*(1-epsilon_e_n)/Rn; % Active surface area per electrode unit volume   Graphite
    es_n = Cap_n*3600/(Faradays*Active_Area*del_n*cs_max_n); %as per Sravans calc
    es_p = Cap_p*3600/(Faradays*Active_Area*del_p*cs_max_p); %as per Sravans calc
    as_p_0 = 3*(es_p)/Rp; % Active surface area per electrode unit volume   NMC as per Sravans calc
@@ -70,21 +122,33 @@ parameters(Access = private)
    drp_0 = Rp/nr;
    drn_0 = Rn/nr;
    
+   %i_normalized = {1,'A'};
+   %matching_units = {1,'mol/m^3/s'};
+   Bel_unit = {1,'mol/m/s/A'};
+   Ael_unit = {1,'1/s'};
+   eta_c_unit = {1,'C/m^3'};
+   phi_electrolyte_unit = {1,'S/A/m^2'};
+   eta_r_unit = {1,'C/mol'};
+   i0_np_unit = {1,'C/mol'};
+   j_np_unit = {1,'A*mol/(C*m^2)'}; 
+   Vr_np_unit = {1,'kg*m^4/(C*mol*s)'};
+   
+
+  
+
 end
 
 parameters(Access = private)
     [Asys,Bsys,Cs_surf,Cs_avg] = Generate_Amat(nr);
-   
+    [Ael,Bel,Cel,n_nodes] = Generate_Amat_Electrolyte(epsilon_e_s,epsilon_e_p,epsilon_e_n,del_n1,del_s1,del_p1,nn,ns,np,brugg,D_e1,t_plus);
+    
+
+
 end
 
-
-
-
+% 
 % intermediates
-%     f    = 0.316 / Re_d^0.25;    % Darcy friction factor
-%     Re_d = D_h * V / nu;         % Reynolds number
-%     D_h  = sqrt( 4.0 * A / pi ); % Hydraulic diameter
-%     V    = q / A;                % Flow velocity
+%     jnval = value(j_n);
 % end
 
 
@@ -97,18 +161,43 @@ equations
 
     % all these equations run in parallel, not one after the other
     v == p.v - n.v;
-    %v == {Cs_surf*cp, 'V'};
     v == {V_ocp,'V'};
+    
     der(cp) == Alpha_s_p*Asys * cp - Bsys*i/(cs_max_p*drp_0*Faradays*Active_Area*as_p_0*del_p); % /(CC.drn_0*CC.F*CC.A*CC.as_n_0*CC.del_n) 
     der(cn) == Alpha_s_n*Asys * cn + Bsys*i/(cs_max_n*drn_0*Faradays*Active_Area*as_n_0*del_n); % /(CC.drn_0*CC.F*CC.A*CC.as_n_0*CC.del_n) 
-    % Add equations here
-    %v == i*R;
+    der(ce) == Ael*ce*Ael_unit + Bel/ce_init*i/Active_Area*Bel_unit;  % Normalized using ce_init.
+    
     cs_surf_p==(Cs_surf*cp);
     cs_surf_n==(Cs_surf*cn);
-    %UP == Up_1(cs_surf_p);
-    %UN == Un_0(cs_surf_n);
+    
     V_ocp == UP-UN;
+    %V_terminal == V_ocp - eta_c + phi_electrolyte + eta_p - eta_n + Vr_p - Vr_n;   % confirm signs %this is correct
+    V_terminal == V_ocp + eta_c - phi_electrolyte + Vr_p - Vr_n + eta_p - eta_n;
+    ce_ave_p == sum(ce(1:np+1,:),1)/(np+1);              
+    ce_ave_s == sum(ce(np+1:np+ns+1,:),1)/(ns+1);
+    ce_ave_n == sum(ce(np+ns+1:np+ns+nn+1,:),1)/(nn+1);
+    eta_c == (2*R*T/Faradays/ce_init)*tf*(ce_ave_p*ce_init_unitless-ce_ave_n*ce_init_unitless)*eta_c_unit;
+    phi_electrolyte == i/kappa*((del_n/(3*epsilon_e_n^brugg))+(del_s/(epsilon_e_s^brugg))+(del_p/(3*epsilon_e_p^brugg)))*phi_electrolyte_unit;
+    
+    j_n == i/(Active_Area*as_n_0*del_n*Faradays)/j_np_unit;
+    %jnval == value(j_n);
+    j_p == -i/(Active_Area*as_p_0*del_p*Faradays)/j_np_unit;
+    i0_n == (k0_n*Faradays)*sqrt((ce_ave_n*ce_init_unitless)*(cs_surf_n*cs_max_n_unitless)*(cs_max_n_unitless-(cs_surf_n*cs_max_n_unitless)))/i0_np_unit;
+    i0_p == (k0_p*Faradays)*sqrt((ce_ave_p*ce_init_unitless)*(cs_surf_p*cs_max_p_unitless)*(cs_max_p_unitless-(cs_surf_p*cs_max_p_unitless)))/i0_np_unit;
+    %eta_n == (R*T/0.5/Faradays)*asinh( value(j_n)*96485/value(i0_n)/2 )*eta_r_unit;   
+    %eta_p == (R*T/0.5/Faradays)*asinh( value(j_p)*96485/value(i0_p)/2 )*eta_r_unit;  
+    %jnval == value(j_n);
+    %x == 96485*jnval;
+    x == 96485*j_n/2/i0_n; 
+    y == 96485*j_p/2/i0_p;
+    eta_n == (R*T/0.5/Faradays)*log(x+sqrt(x^2+1))*eta_r_unit;   
+    eta_p == (R*T/0.5/Faradays)*log(y+sqrt(y^2+1))*eta_r_unit;    
 
+    % Sravan hasnt included potential drop across the electrode. He's included film resistance of each electrode instead
+    Vr_p == j_p*Faradays*kt_p/Vr_np_unit;
+    Vr_n == j_n*Faradays*kt_n/Vr_np_unit;
+    %phi_electrode == i/3*(del_p/sigma_p + del_n/sigma_n);
+    
     UP ==  4.3452-1.6518*(cs_surf_p)+1.6225*(cs_surf_p).^2-2.0843*(cs_surf_p).^3+3.5146*(cs_surf_p).^4-2.2166*(cs_surf_p).^5-0.5623*exp(109.451*(cs_surf_p)-100.006);
     UN ==  0.063+0.8*exp(-75*(cs_surf_n+0.007))+...
     -0.0120*tanh((cs_surf_n-0.127)/0.016)+...
@@ -117,7 +206,7 @@ equations
     -0.0095*tanh((cs_surf_n-0.190)/0.013)+...
     -0.0145*tanh((cs_surf_n-0.490)/0.030)+...
     -0.0800*tanh((cs_surf_n-1.030)/0.055);
-
+    % small difference compared to Pybamm confirm if stoichiometry and cs is same
 end
 
 end
