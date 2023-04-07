@@ -18,6 +18,7 @@ outputs
     phi_electrolyte;
     eta_c;
     Vr_n;
+    ce_1;
     %phi_electrolyte;
       
 end
@@ -169,10 +170,12 @@ equations
     
     cs_surf_p==(Cs_surf*cp);
     cs_surf_n==(Cs_surf*cn);
+    ce_1 == ce;
     
     V_ocp == UP-UN;
     %V_terminal == V_ocp - eta_c + phi_electrolyte + eta_p - eta_n + Vr_p - Vr_n;   % confirm signs %this is correct
     V_terminal == V_ocp + eta_c - phi_electrolyte + Vr_p - Vr_n + eta_p - eta_n;
+    %% V_ocp+eta_elec-Phi_elec+pos_electrode_ohm-neg_electrode_ohm_
     ce_ave_p == sum(ce(1:np+1,:),1)/(np+1);              
     ce_ave_s == sum(ce(np+1:np+ns+1,:),1)/(ns+1);
     ce_ave_n == sum(ce(np+ns+1:np+ns+nn+1,:),1)/(nn+1);
