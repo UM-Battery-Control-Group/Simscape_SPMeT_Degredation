@@ -1,4 +1,4 @@
-component SPM_Trial_4_2
+component SPM_Trial_4_3
 % Two-port electrical component
 nodes
     p = foundation.electrical.electrical; % +:left
@@ -19,37 +19,53 @@ outputs
     eta_c;
     Vr_n;
     ce_1;
-    %phi_electrolyte;
+    j_sei = {0,'mol/s/m^2'};
+    i_sei = {0,'A'};
+    i_li = {0,'A'};
+    j_li = {0,'mol/s/m^2'};
+    eta_sei = 0;
+    eta_li = 0;
+    Phie_n_avg = (2*R*T*tf*(1*ce_init_unitless)/ce_init/Faradays)*eta_c_unit
       
 end
 
 variables
     i = { 0, 'A' }; % Current
     v = { 0, 'V' }; % Voltage
-    %cp = 0.5*ones(nr+1,1); % Normalized Concentration.
-    %cn = 0.5*ones(nr+1,1); % Non Normalized Concentration.
+
     cp = (SOC_0*(y100_percent_p-y0_percent_p)+y0_percent_p)*ones(nr+1,1); % Normalized Concentration.
     cn = (SOC_0*(x100_percent_n-x0_percent_n)+x0_percent_n)*ones(nr+1,1); % Normalized Concentration.
     ce = (ce_init/ce_init)*ones(np+ns+nn+1,1); % Normalized Concentration
     UP = 0;
     UN = 0;
     V_ocp = 0;
-%    eta_c = 0;
-%    phi_electrolyte = 0;
+    Vr_p = 0;
+   
+    j_n = 0;
+    j_p = 0;
+    i0_p = 0; 
+    x = 0;  
+    y = 0; 
+    
+    R_sei = del_sei_init/k_sei;
+    del_sei = del_sei_init;
+    Li_loss = {0,'mol'};
+    Li_plated = {0,'mol'};
+    Q_loss = {0,'A*hr'};
+    soc_loss = 0;
+
+% Initialized as output
+%     eta_c = 0;
+%     phi_electrolyte = 0;
 %     j_n = {0,'mol/m^2/s'};
 %     j_p = {0,'mol/m^2/s'}; 
 %     i0_n = {0,'C/m^2/s'};
 %     i0_p = {0,'C/m^2/s'};
-    j_n = 0;
-    j_p = 0;
-    %i0_n = 0;
-    i0_p = 0; 
-    %eta_n = 0;
-    %eta_p = 0;
-    Vr_p = 0;
-%    Vr_n = 0;
-    x = 0;  
-    y = 0; 
+%     i0_n = 0;
+%     eta_n = 0;
+%     eta_p = 0;
+%     Vr_n = 0;
+
 end
 
 parameters
@@ -58,23 +74,42 @@ parameters
    nn = 50;  %number of elements in the negative electrode
    ns = 25;  %number of elements in the separator
    np = 50;  %number of elements in the positive electrode
-   % R = { 1, 'Ohm' }; % Resistance
+  
+   %Electrode Parameters
    Rp = {3.5e-06,'m'}; % Radius of Particle NMC
    Rn = {2.5e-06,'m'};  % Radius of Particle Graphite
    Ds_p = {8e-15,'m^2/s'}; % Ds_p_1 (m^2/s) NMC 0.025
    Ds_n = {5e-15,'m^2/s'}; % Ds_n (m^2/s) Graphite 0.4
+   del_p = {6.7e-05,'m'}; % Electrode Thickness NMC
+   del_n = {6.2e-05,'m'};% Electrode Thickness Graphite
+   del_s = {1.2e-05,'m'}; % Separator Thickness
+   del_p1 = 6.7e-05; % Electrode Thickness NMC
+   del_n1 = 6.2e-05;% Electrode Thickness Graphite
+   del_s1 = 1.2e-05; % Separator Thickness
+   cs_max_p = {35380,'mol/m^3'}; % cs_max_p_1 (mol/m^3) NMC
+   cs_max_p_unitless = 35380;
+   cs_max_n = {28746,'mol/m^3'}; % cs_max_n (mol/m^3) Graphite
+   cs_max_n_unitless = 28746; 
+   epsilon_e_p = 0.3; % Volume fraction in electrolyte (porosity) for pos. electrode
+   epsilon_e_n = 0.3; % Volume fraction in electrolyte (porosity) for neg. electrode
+   epsilon_e_s = 0.4; % Volume fraction in electrolyte (porosity) for seperator
+
+   %Electrolyte Parameters
    D_e = {5.35e-10,'m^2/s'};% (m^2/s) Electrolyte Diffusion Coefficient
    D_e1 = 5.35e-10;
-   SOC_0 = 0.1; % Initialized SOC
-  
+   
    brugg = 1.5; % Bruggman exponent
    t_plus = 0.38; % transference number
-   tf = 0.62; % Thermodynamic factor
+   tf = 1-t_plus; % Thermodynamic factor
    ce_init ={1000,'mol/m^3'}; % initial electrolyte concentration
    ce_init_unitless = 1000;
    kappa = {1.3,'S/m'}; % electrolyte conductivity
+
+   % Intercolation Parameters
    k0_n = 1.061e-6/96485; % k0_n (mol/[m^2s(mol/m^3)]) reaction rate constant  Graphite ---- confirm if Fradays is req to multiply -- is it only for value? acc to units yes
    k0_p = 4.824e-6/96485; % k0_n (mol/[m^2s(mol/m^3)]) reaction rate constant  NMC ---- confirm if Fradays is req to multiply
+   
+   % Film Resistance Parameters
    kt_n = {1*0.0250,'V/A*m^2'};  % kt (omega m^2) film resistence  Graphite
    kt_p = {0*300e-4,'V/A*m^2'};  % kt (omega m^2) film resistence  NMC
   
@@ -84,56 +119,62 @@ parameters
    y0_percent_p = 0.8941;
    y100_percent_p = 0.0335; 
    
-
-   del_p = {6.7e-05,'m'}; % Electrode Thickness NMC
-   del_n = {6.2e-05,'m'};% Electrode Thickness Graphite
-   del_s = {1.2e-05,'m'}; % Separator Thickness
-
-   del_p1 = 6.7e-05; % Electrode Thickness NMC
-   del_n1 = 6.2e-05;% Electrode Thickness Graphite
-   del_s1 = 1.2e-05; % Separator Thickness
-
-   cs_max_p = {35380,'mol/m^3'}; % cs_max_p_1 (mol/m^3) NMC
-   cs_max_p_unitless = 35380;
-   cs_max_n = {28746,'mol/m^3'}; % cs_max_n (mol/m^3) Graphite
-   cs_max_n_unitless = 28746; 
-   epsilon_e_p = 0.3; % Volume fraction in electrolyte (porosity) for pos. electrode
-   epsilon_e_n = 0.3; % Volume fraction in electrolyte (porosity) for neg. electrode
-   epsilon_e_s = 0.4; % Volume fraction in electrolyte (porosity) for seperator
-   Active_Area = {0.205,'m^2'}; % Battery Total Area (Area x No of Layers)
-   
+   % Physical Constants and Parameters
    Faradays={96485,'C/mol'}; % Faraday Constant (C/mol)
    T = 273.15+25; % Temperature
    R = 8.3145; % Gas constant
 
+   %Battery Parameters
    Cap_n =  {6.0272,'C'};
    Cap_p =  {5.8050,'C'};
+   Active_Area = {0.205,'m^2'}; % Battery Total Area (Area x No of Layers)
+   SOC_0 = 0.1; % Initialized SOC
+
+   %% SEI Plating parameters
+   U_sei = {0,'V'}; % sei formation reaction equilibrium potential (V) {0.4 V in Ramadass}
+   i0pl = {0.001,'A/m^2'}; % li plating exchange current density (A/m2)
+   del_sei_init = {5e-9,'m'}; % initial thickness of sei (m)
+   D_ec = {2e-18,'m^2/s'}; % Diffusion in sei, confirm (m2/s)
+   c_ec0 = {4541,'mol/m^3'}; % concentration of ethylene carbonate (the other compound of sei) Mol/m3
+   M_sei = {0.162,'kg/mol'}; % 1/Molality of sei  
+   rho_sei = {1690,'kg/m^3'}; % density of sei - (kg/m3)
+   k0_sei = {1e-12,'m/s'}; % reaction constant for sei (m/s - confirm unit - confirmed)
+   k_sei = {5e-6,'S/m'}; % conductivity of sei (S/m)
+   M_li = {6.94e-3,'kg/mol'}; % 1/Molality of Li - this unit according to Yang et al. 
+   rho_li = {534,'kg/m^3'}; % density if Li - (kg/m3)
+
+
+
 end
 
 parameters(Access = private)
+
+   % ODE Eqn Req terms 
    %as_p_0 = 3*(1-epsilon_e_p)/Rp; % Active surface area per electrode unit volume   NMC 
    %as_n_0 = 3*(1-epsilon_e_n)/Rn; % Active surface area per electrode unit volume   Graphite
    es_n = Cap_n*3600/(Faradays*Active_Area*del_n*cs_max_n); %as per Sravans calc
    es_p = Cap_p*3600/(Faradays*Active_Area*del_p*cs_max_p); %as per Sravans calc
    as_p_0 = 3*(es_p)/Rp; % Active surface area per electrode unit volume   NMC as per Sravans calc
    as_n_0 = 3*(es_n)/Rn; % Active surface area per electrode unit volume   Graphite as per Sravans calc
-  
    Alpha_s_p=Ds_p/(Rp/nr)^2;
    Alpha_s_n=Ds_n/(Rn/nr)^2;
    drp_0 = Rp/nr;
    drn_0 = Rn/nr;
    
-   %i_normalized = {1,'A'};
-   %matching_units = {1,'mol/m^3/s'};
+
+   % Unit Balancing Terms
    Bel_unit = {1,'mol/m/s/A'};
    Ael_unit = {1,'1/s'};
    eta_c_unit = {1,'C/m^3'};
-   phi_electrolyte_unit = {1,'S/A/m^2'};
+   phi_electrolyte_unit = {1,'S/A'};
+   phi_electrolyte_ohmic_unit = {1,'S/A'};
    eta_r_unit = {1,'C/mol'};
    i0_np_unit = {1,'C/mol'};
    j_np_unit = {1,'A*mol/(C*m^2)'}; 
    Vr_np_unit = {1,'kg*m^4/(C*mol*s)'};
-   
+   V_sei_unit = {1,'S/A'};
+   U_sei_unit = {1,'1/V'};
+   Faradays_unit = {1,'mol/C'}
 
   
 
@@ -143,14 +184,7 @@ parameters(Access = private)
     [Asys,Bsys,Cs_surf,Cs_avg] = Generate_Amat(nr);
     [Ael,Bel,Cel,n_nodes] = Generate_Amat_Electrolyte(epsilon_e_s,epsilon_e_p,epsilon_e_n,del_n1,del_s1,del_p1,nn,ns,np,brugg,D_e1,t_plus);
     
-
-
 end
-
-% 
-% intermediates
-%     jnval = value(j_n);
-% end
 
 
 branches
@@ -164,43 +198,91 @@ equations
     v == p.v - n.v;
     v == {V_ocp,'V'};
     
+
+    % SPM ODEs
     der(cp) == Alpha_s_p*Asys * cp - Bsys*i/(cs_max_p*drp_0*Faradays*Active_Area*as_p_0*del_p); % /(CC.drn_0*CC.F*CC.A*CC.as_n_0*CC.del_n) 
-    der(cn) == Alpha_s_n*Asys * cn + Bsys*i/(cs_max_n*drn_0*Faradays*Active_Area*as_n_0*del_n); % /(CC.drn_0*CC.F*CC.A*CC.as_n_0*CC.del_n) 
+    der(cn) == Alpha_s_n*Asys * cn + Bsys*(i-i_sei-i_li)/(cs_max_n*drn_0*Faradays*Active_Area*as_n_0*del_n); % /(CC.drn_0*CC.F*CC.A*CC.as_n_0*CC.del_n) 
     der(ce) == Ael*ce*Ael_unit + Bel/ce_init*i/Active_Area*Bel_unit;  % Normalized using ce_init.
     
+
+    % Concentrations
     cs_surf_p==(Cs_surf*cp);
     cs_surf_n==(Cs_surf*cn);
     ce_1 == ce;
-    
-    V_ocp == UP-UN;
-    %V_terminal == V_ocp - eta_c + phi_electrolyte + eta_p - eta_n + Vr_p - Vr_n;   % confirm signs %this is correct
-    V_terminal == V_ocp + eta_c - phi_electrolyte + Vr_p - Vr_n + eta_p - eta_n;
-    %% V_ocp+eta_elec-Phi_elec+pos_electrode_ohm-neg_electrode_ohm_
     ce_ave_p == sum(ce(1:np+1,:),1)/(np+1);              
     ce_ave_s == sum(ce(np+1:np+ns+1,:),1)/(ns+1);
     ce_ave_n == sum(ce(np+ns+1:np+ns+nn+1,:),1)/(nn+1);
-    eta_c == (2*R*T/Faradays/ce_init)*tf*(ce_ave_p*ce_init_unitless-ce_ave_n*ce_init_unitless)*eta_c_unit;
-    phi_electrolyte == i/kappa*((del_n/(3*epsilon_e_n^brugg))+(del_s/(epsilon_e_s^brugg))+(del_p/(3*epsilon_e_p^brugg)))*phi_electrolyte_unit;
     
-    j_n == i/(Active_Area*as_n_0*del_n*Faradays)/j_np_unit;
-    %jnval == value(j_n);
+
+    % Open Circuit Potential
+    V_ocp == UP-UN;
+    
+    
+    % Electrolyte Potential Drops
+    eta_c == (2*R*T/Faradays/ce_init)*tf*(ce_ave_p*ce_init_unitless-ce_ave_n*ce_init_unitless)*eta_c_unit;
+    phi_electrolyte == i/kappa/2/Active_Area*((del_n/(3*epsilon_e_n^brugg))+(2*del_s/(epsilon_e_s^brugg))+(del_p/(3*epsilon_e_p^brugg)))*phi_electrolyte_unit; % confirm if i needs to be divided by Active Area, Sravan is doing that 
+    
+
+    % Sei Degradation 
+    Phie_n_avg == (2*R*T*tf*(ce_ave_n*ce_init_unitless)/ce_init/Faradays)*eta_c_unit-(i/Active_Area/kappa*del_n/3/(epsilon_e_n^brugg))*phi_electrolyte_ohmic_unit;
+    eta_sei == (UN-Phie_n_avg-U_sei*U_sei_unit-((i/(Active_Area*as_n_0*del_n))*R_sei)*V_sei_unit);% 
+    if i<0
+        j_sei == -c_ec0/((1/(k0_sei*exp(-0.5*Faradays*Faradays_unit/R/T*(eta_sei))))+(del_sei/D_ec)); % Diffusion limited mol/m2/s: (using c_ec0 as c_ec_bulk)
+        %j_sei == -(k0_sei*c_ec0)*exp(-0.5*Faradays*Faradays_unit/R/T*(eta_sei));
+    else
+        j_sei== 0;
+    end    
+    i_sei == j_sei*Faradays*Active_Area*as_n_0*del_n; % Amps
+    der(del_sei) == (-i_sei/(Active_Area*as_n_0*del_n)*M_sei/rho_sei/Faradays); % m/s
+    der(R_sei) == (-i_sei/(Active_Area*as_n_0*del_n)*M_sei/rho_sei/Faradays)/k_sei; % ohm*m^2
+
+
+    % Li - plating (confirm reversibility implementation)
+    eta_li == (UN-Phie_n_avg-((i/(Active_Area*as_n_0*del_n))*R_sei)*V_sei_unit);% 
+    if i<0;
+        j_li == -(i0pl/Faradays)*exp(-0.5*Faradays*Faradays_unit/R/T*(eta_li)); % mol/m2/s -- this is where change is made 4 is added to denominator. If it is reduced then suddenly cs_n jumps over 1
+    else
+        j_li == 0;
+    end
+    i_li == j_li*Faradays*Active_Area*as_n_0*del_n; % Amps
+
+
+    % Loss of Lithium and Capacity and SOC due to degradation 
+    % yet to implement - change in stoichiometric/concentration range to keep tab of lithium loss
+    der(Li_loss) == -i_sei/Faradays;
+    der(Q_loss) == -i_sei/3600; % Ah
+    soc_loss == Q_loss/Cap_p;
+
+
+    % Loss due to plating
+    der(Li_plated) == -i_li/Faradays;
+    
+
+    % Intercolation Reaction Overpotential
+    j_n == (i-i_sei-i_li)/(Active_Area*as_n_0*del_n*Faradays)/j_np_unit;
     j_p == -i/(Active_Area*as_p_0*del_p*Faradays)/j_np_unit;
-    i0_n == (k0_n*Faradays)*sqrt((ce_ave_n*ce_init_unitless)*(cs_surf_n*cs_max_n_unitless)*(cs_max_n_unitless-(cs_surf_n*cs_max_n_unitless)))/i0_np_unit;
+    i0_n == (k0_n*Faradays)*sqrt((ce_ave_n*ce_init_unitless)*(cs_surf_n*cs_max_n_unitless)*(cs_max_n_unitless-(cs_surf_n*cs_max_n_unitless)))/i0_np_unit; 
     i0_p == (k0_p*Faradays)*sqrt((ce_ave_p*ce_init_unitless)*(cs_surf_p*cs_max_p_unitless)*(cs_max_p_unitless-(cs_surf_p*cs_max_p_unitless)))/i0_np_unit;
-    %eta_n == (R*T/0.5/Faradays)*asinh( value(j_n)*96485/value(i0_n)/2 )*eta_r_unit;   
-    %eta_p == (R*T/0.5/Faradays)*asinh( value(j_p)*96485/value(i0_p)/2 )*eta_r_unit;  
-    %jnval == value(j_n);
-    %x == 96485*jnval;
     x == 96485*j_n/2/i0_n; 
     y == 96485*j_p/2/i0_p;
     eta_n == (R*T/0.5/Faradays)*log(x+sqrt(x^2+1))*eta_r_unit;   
     eta_p == (R*T/0.5/Faradays)*log(y+sqrt(y^2+1))*eta_r_unit;    
 
-    % Sravan hasnt included potential drop across the electrode. He's included film resistance of each electrode instead
+
+    % Film Resistance Potential Drop
     Vr_p == j_p*Faradays*kt_p/Vr_np_unit;
     Vr_n == j_n*Faradays*kt_n/Vr_np_unit;
+
+
+    % Electrode Ohmic Drop
     %phi_electrode == i/3*(del_p/sigma_p + del_n/sigma_n);
-    
+
+
+    % Terminal Voltage
+    V_terminal == V_ocp + eta_c - phi_electrolyte + Vr_p - Vr_n + eta_p - eta_n - i/(Active_Area*as_n_0*del_n)*R_sei*V_sei_unit;
+
+
+    % Electrode Potential funtion of normalized surface concentration
     UP ==  4.3452-1.6518*(cs_surf_p)+1.6225*(cs_surf_p).^2-2.0843*(cs_surf_p).^3+3.5146*(cs_surf_p).^4-2.2166*(cs_surf_p).^5-0.5623*exp(109.451*(cs_surf_p)-100.006);
     UN ==  0.063+0.8*exp(-75*(cs_surf_n+0.007))+...
     -0.0120*tanh((cs_surf_n-0.127)/0.016)+...
